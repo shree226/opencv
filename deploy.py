@@ -13,10 +13,10 @@ option = st.selectbox(
     ("Start Detection", "Stop Detection", "Settings")
 )
 
-# Use a relative path for the model
-model_path = os.path.join("runs", "detect", "train24", "weights", "best.pt")
 
-# Check if the model file exists
+model_path = "best.pt"
+
+
 if not os.path.exists(model_path):
     st.error(f"Model file not found at {model_path}. Please check your file path.")
 else:
