@@ -1,50 +1,44 @@
-import streamlit as st
+from flask import Flask, render_template, Response
 import cv2
-import torch
-import numpy as np
 from ultralytics import YOLO
-import time
 import os
 
-st.title("Surgical Tool Detection in Real-time")
+app = Flask(__name__)
 
-option = st.selectbox(
-    "Choose an option:",
-    ("Start Detection", "Stop Detection", "Settings")
-)
-
-
+# Load YOLO model
 model_path = "best.pt"
-
-
 if not os.path.exists(model_path):
-    st.error(f"Model file not found at {model_path}. Please check your file path.")
-else:
-    model = YOLO(model_path)
+    raise FileNotFoundError(f"Model file not found at {model_path}")
+model = YOLO(model_path)
 
+# Video capture
 cap = cv2.VideoCapture(0)
 
-if option == "Start Detection":
-    stframe = st.empty()
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
+def generate_frames():
+    while True:
+        success, frame = cap.read()
+        if not success:
             break
 
+        # Run detection
         results = model(frame)
-        
-        annotated_frame = results[0].plot() 
-        annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+        annotated_frame = results[0].plot()
 
-        stframe.image(annotated_frame, channels="RGB", use_column_width=True)
+        # Encode frame to JPEG
+        ret, buffer = cv2.imencode('.jpg', annotated_frame)
+        frame = buffer.tobytes()
 
-        time.sleep(0.1)
+        # Yield frame for streaming
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
-    cap.release()
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-elif option == "Stop Detection":
-    st.write("Detection stopped. Please restart the application.")
+@app.route('/video')
+def video():
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-elif option == "Settings":
-    st.write("Adjust detection settings here.")
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5000, debug=True)
